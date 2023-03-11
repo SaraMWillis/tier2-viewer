@@ -17,7 +17,6 @@ def usage(command):
     print("\n".join(textwrap.wrap(emoji.emojize(":star:   Directories do not have storage tiers associated with them, only files."), width)))
     print("\n".join(textwrap.wrap(emoji.emojize(":star::star: Objects smaller than 128KB are not subject to intelligent tiering and will always be stored as STANDARD."), width)))
     #Objects stored in a UArizona AWS bucket are subject to intelligent tiering**.\n\n\n")
-    #print(textwrap.wrap(about_string,width=TERMINAL_WIDTH))
     print("\n\n")
     
     print("\nUsage: %s [--OPTION=VALUE|--help|--config]"%command)
