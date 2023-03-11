@@ -1,0 +1,16 @@
+#!/bin/bash
+
+SCRIPT=tier2-viewer
+
+SRC_DIR=
+BUILD_DIR=${SRC_DIR}/build
+BUILT_EXE=${BUILD_DIR}/dist/${SCRIPT}
+
+INSTALL_DIR=
+
+cd $BUILD_DIR
+
+# module load python/3.8 <- specific to UArizona HPC
+
+pyinstaller --onefile ${SRC_DIR}/$SCRIPT
+cp $BUILT_EXE $INSTALL_DIR

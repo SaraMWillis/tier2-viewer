@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+
+import os, sys, subprocess, json, getopt, shutil, getpass, re
+
+from user_input.user_flags import *
+from user_input.user_prompts import user_continue
+from config.aws_credentials_config import aws_config, bucket_config
+from config.check_config import check_if_configured
+from config.config_user_args import config_parameters
+
+from formatting.string_reformatting import human_readable, formatting_string, mask_string, formatting_string_ls
+
+from aws.lists import valid_buckets, aws_ls, aws_list_objects
+from aws.storage_class import find_objects, get_tier_class
+from aws.object_data import check_if_directory
+from aws.merge import merge_bucket_dictionaries
+
+from display.usage import usage
+from display.display import display_ls, display_tiers
+from display._version import version, date, author, institution
+
+
+
+
+
+'''
+------------------------------------------------------------------------------------------
+##########################################################################################
+                                    Program Executes Below                                
+##########################################################################################
+------------------------------------------------------------------------------------------
+'''
+
+if __name__ == "__main__":
+    
+    # Files that can be used as part of this script. The aws credentials are
+    # required since they provide the public/private access keys to view the contents
+    # of a bucket. The bucket file can be optionally configured to allow a user to 
+    # query their bucket without explicitly entering the name each time. 
+    home_dir             = os.path.expanduser('~')
+    aws_credentials      = os.path.join(home_dir,".aws/credentials")
+    bucket_path          = os.path.join(home_dir,".config/aws-tier-check/")
+    bucket_file          = "bucket"
+    
+    # We need to have some sort of sane limitations on the number of files that can be listed and,
+    # more importantly, queried. This script will try to reduce the number of aws calls it makes
+    # by getting a summary of objects and only querying the ones that are necessary. We'll set a limit
+    # on the number of objects that can be pulled from the bucket in one go as well as the number
+    # of objects that can be in a specific directory. If more objects exist than this limit, the query 
+    # will warn the user, change the methodology, or exit.
+    bucket_limit         = 10000
+    directory_soft_limit = 200
+    directory_hard_limit = 1000
+    file_threshold       = 10
+    
+    
+    
+
+    # This script is a wrapper for the aws CLI, so we need to check if aws exists. If not, exit
+    if shutil.which("aws") == None:
+        print("Oops! The aws CLI is not available on this machine. The filexfer node is an option for this script.")
+        sys.exit(1)
+            
+    # if no user options were included, we check to see whether configuration files exist. If not, the user is
+    # prompted to configure (if desired). If the configuration doesn't exist and the user doesn't opt to 
+    # to continue, the program exits
+    if len(sys.argv) == 1:
+        user_args = check_if_configured(aws_credentials, bucket_path,bucket_file)
+    # If options were included, we pass those options to our parser. This does a check to make sure the aws credentials
+    # are stored in ~/.aws/credentials. If not, user needs to add them. If the bucket file doesn't exist and no bucket
+    # was included with the --bucket flag, the user will be asked if they want to configure their bucket name for future
+    # use. If not, the program will exit with a note on usage.
+    else:
+        user_args = config_parameters(sys.argv[1:], bucket_path,bucket_file, aws_credentials)
+    max_width = user_args.max_width
+
+    #check_query(user_args.bucket,user_args.searchable_prefix)
+    # Whether the prefix provided by the user (assuming there is one) is a directory or not determines the aws syntax
+    # that needs to be used. This is because the outputs from `aws s3 ls directory/` and `aws s3 ls directory` differ.
+    # We'll pass our user_args to this function which will update the syntax of the prefix if necessary
+    user_args = check_if_directory(user_args)
+    # Now we grab the bucket contents. The contents include the name of the object, whether it's a directory (True or False),
+    # and the size of that object
+    bucket_contents,max_name_length = aws_ls(user_args.bucket, user_args.searchable_prefix,user_args.prefix_is_dir)
+
+    if max_width != None and max_name_length > max_width:
+        max_name_length = max_width
+    # If the user hasn't included the --tiers flag, then we can print the formatted information we obtained through aws_ls
+    # and exit. 
+    if user_args.tiers == False:
+        display_ls(bucket_contents,user_args,max_name_length)
+        sys.exit(0)
+
+    # If the user has included the --tiers flag, then we need to do some more work to dig out detailed object information
+    else:
+        file_count = sum(value["directory"] == False for value in bucket_contents.values())
+        if file_count > directory_hard_limit:
+            print(user_args.WARNINGCOLOR + "Yikes! There are over %s files in this directory. This will take a VERY long time to process. It's recommended querying an individual object rather than the full directory. Try running this again without --tier to see the contents. Exiting."%file_count + user_args.ENDCOLOR)
+            sys.exit(1)
+        elif file_count > directory_soft_limit:
+            cont = user_continue("Yikes! There are %s files in this directory. This may take a very long time to query. Proceed?"%file_count)
+            if cont == False:
+                sys.exit(0)
+        # Getting info from aws s3api list-objects allows us to see if there are any objects in the Standard storage tier
+        # (which happens when an object is too small to be classified as intelligent tiering). If there are a lot of these, 
+        # this will speed up getting archival status of a directory's contents since we can skip those objects and directories.
+        # However, since this is a bit of a time-intensive process, we'll first check how many objects we're dealing with.
+        
+        #head_object = False
+        
+        # First, if nothing is in the directory, we don't need to worry about querying it further. We print the result and exit
+        if len(bucket_contents) == 0:
+            display_tiers(bucket_contents,user_args,max_name_length)
+            sys.exit(0)
+            
+        # Next, we check how many files are in the directory. We don't necessarily want to run a list-objects and parse all
+        # the output if the directory is only populated by other directories (which don't have a storage class), or only has 
+        # a few files in it, since this is a time waste. If the number of files is below a threshold (defined at the beginning)
+        # of this script, we just go ahead and run a head-objects query on each object.
+        elif file_count <= file_threshold:
+            display_tiers(bucket_contents,user_args,max_name_length)
+            sys.exit(0)
+        
+        else:
+            contents = aws_list_objects(user_args, bucket_limit,bucket_contents)
+            bucket_contents_list_objects, max_name_length_list_objects = find_objects(contents,user_args)
+            bucket_contents = merge_bucket_dictionaries(bucket_contents,bucket_contents_list_objects)
+            display_tiers(bucket_contents,user_args,max_name_length)
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+        
+        
+        
+        
+        
