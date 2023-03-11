@@ -35,7 +35,7 @@ def aws_config():
 def bucket_config(bucket_path,bucket_file):
     print("\nEntering bucket configuration")
     while True:
-        bucket_group = input("Bucket Name (fill in your group): ua-rt-t2-")
+        bucket_group = input("Bucket Name: ")
         bucket_name = "ua-rt-t2-"+bucket_group
         try: 
             subprocess.check_output(['aws', 's3api', 'head-bucket', '--bucket', bucket_name])
