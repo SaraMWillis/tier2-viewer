@@ -37,25 +37,4 @@ def check_if_directory(user_args):
                     else:
                         user_args.prefix_is_dir = False
                     break
-    '''
-    # This bit is to deal with some annoying cases -_-. 
-    if user_args.prefix != None:
-        print(user_args.prefix)
-        sys.exit(0)
-        p = subprocess.Popen(["aws s3api head-object --bucket %s --key %s"%(user_args.bucket,user_args.prefix)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
-        out,err = p.communicate()
-        err = err.decode("utf-8","ignore")
-        if err != "":
-            p = subprocess.Popen(["aws s3api head-object --bucket %s --key %s/"%(user_args.bucket,user_args.prefix)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
-            out,err = p.communicate()
-            err = err.decode("utf-8","ignore").strip()
-            if err == "":
-                user_args.prefix_is_dir = True
-                user_args.searchable_prefix = user_args.searchable_prefix[:-1]+'/"'
-            else:
-                print(user_args.WARNINGCOLOR+emoji.emojize("\n:red_exclamation_mark: Oops! No object found. Check that the item you are querying exists and there are no typos in your --prefix input.\n")+user_args.ENDCOLOR)
-                sys.exit(6)
-    else:
-        user_args.prefix_is_dir = True
-    '''
     return user_args
