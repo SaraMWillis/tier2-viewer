@@ -14,6 +14,7 @@ from aws.lists import valid_buckets, aws_ls, aws_list_objects
 from aws.storage_class import find_objects, get_tier_class
 from aws.object_data import check_if_directory
 from aws.merge import merge_bucket_dictionaries
+from aws.get_size import du
 
 from display.usage import usage
 from display.display import display_ls, display_tiers
@@ -87,6 +88,15 @@ if __name__ == "__main__":
         max_name_length = max_width
     # If the user hasn't included the --tiers flag, then we can print the formatted information we obtained through aws_ls
     # and exit. 
+    
+    if user_args.get_size == True:
+        size_of_query = du(user_args)
+        if user_args.prefix ==None:
+            print("Size of bucket: %s"%human_readable(size_of_query))
+        else:
+            print("Size: %s"%human_readable(size_of_query))
+        sys.exit(0)
+    
     if user_args.tiers == False:
         display_ls(bucket_contents,user_args,max_name_length)
         sys.exit(0)
@@ -105,9 +115,7 @@ if __name__ == "__main__":
         # (which happens when an object is too small to be classified as intelligent tiering). If there are a lot of these, 
         # this will speed up getting archival status of a directory's contents since we can skip those objects and directories.
         # However, since this is a bit of a time-intensive process, we'll first check how many objects we're dealing with.
-        
-        #head_object = False
-        
+
         # First, if nothing is in the directory, we don't need to worry about querying it further. We print the result and exit
         if len(bucket_contents) == 0:
             display_tiers(bucket_contents,user_args,max_name_length)

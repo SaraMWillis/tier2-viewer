@@ -10,7 +10,7 @@ def usage(command):
     print("\n\n")
     print("\n".join(textwrap.wrap(command + " is a command line utility to view the contents of an AWS bucket. This is used as a wrapper for the aws CLI to list files/directories, their storage classes"+emoji.emojize(":star:")+", and the status of a restore request.", width)))
     print()
-    print("\n".join(textwrap.wrap("To retrieve information on the storage tier of an object, use the --tier flag in your query. This can sometimes take a long time depending on the number of objects in your bucket. A limit of 1000 objects can be queried for their storage class in a bucket.", width)))
+    print("\n".join(textwrap.wrap("To retrieve information on the storage tier of an object, use the --tier flag in your query. This can sometimes take a long time depending on the number of objects in your bucket. A limit of 1000 objects can be queried for their storage class.", width)))
     print()
     print("\n".join(textwrap.wrap(emoji.emojize("Objects stored in a UArizona AWS bucket are subject to intelligent tiering:star::star:."), width)))
     print()
