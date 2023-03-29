@@ -25,8 +25,9 @@ class Args:
         self.config = False
         self.usage = False
         self.version = False
+        self.get_size = False
         try:
-            opts,args = getopt.getopt(argv, "hvcftn:p:g:b:",["help","version","tiers","config","configure","full-width","prefix=","path=","group=","bucket="])
+            opts,args = getopt.getopt(argv, "hvcsftn:p:g:b:",["help","version","tiers","config","size","configure","full-width","no-color","prefix=","path=","group=","bucket="])
         except getopt.GetoptError:
             sys.exit("Unrecognized Option")
         for opt,arg in opts:
@@ -51,6 +52,8 @@ class Args:
             elif opt in ("-t","--tiers"):
                 self.tiers = True
                 self.max_width = self.max_width - 75
+                if self.max_width < 10:
+                    self.max_width = 10
             elif opt in ("-g","--group"):
                 self.bucket = "ua-rt-t2-%s"%arg
             elif opt in ("-c","--config","--configure"):
@@ -59,3 +62,10 @@ class Args:
                 self.version = True
             elif opt in ("-f","--full-width"):
                 self.max_width = None
+            elif opt in ("--no-color"):
+                self.WARNINGCOLOR ="\033[0m"
+                self.DIRECTORYCOLOR = "\033[0m"
+            elif opt in ("--size","-s"):
+                self.get_size = True
+        if [self.tiers, self.get_size].count(True) > 1:
+            sys.exit("Oops! The --tiers and --size flags are mutually exclusive.")

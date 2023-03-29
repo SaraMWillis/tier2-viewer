@@ -6,11 +6,12 @@ def find_objects(out,user_args):
     # AWS reports all the objects stored in AWS at once. This next bit 
     depth_1_objects = {}
     max_file_length = 0 
+    
 
     for k in out["Contents"]:
         true_path = k["Key"]
         path_correct = True
-        if user_args.prefix_is_dir == True:
+        if user_args.prefix_is_dir == True and user_args.prefix != None:
             true_prefix = user_args.prefix + "/"
             if true_prefix == true_path:
                 pass
@@ -38,6 +39,7 @@ def find_objects(out,user_args):
         depth_1_objects.pop("")
     except KeyError:
         pass
+    
     return depth_1_objects, max_file_length
 
 

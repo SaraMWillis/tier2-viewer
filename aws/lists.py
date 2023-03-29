@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import subprocess, os, sys, json
+import subprocess, os, sys, json, re
 
 
 def valid_buckets():
@@ -37,7 +37,9 @@ def aws_ls(bucket, prefix,is_directory):
         # If there is only one result and it starts with PRE, then that means the object we're querying is a directory and the
         # syntax we've used has prevented us from successfully querying the contents. This, in theory, shouldn't happen given
         # upstream manipulations...
-        if len(out) == 1 and out[0].split(" ")[0] == "PRE":
+        
+        # Crud... thats not always true. 
+        if len(out) == 1 and out[0].split(" ")[0] == "PRE" and prefix != "":
             path += "/"
         else:
             search = False
@@ -45,59 +47,38 @@ def aws_ls(bucket, prefix,is_directory):
     # display purposes
     objects = {}
     max_name_length = 0
+    regex_pattern = "\d{4}\-\d{2}\-\d{2}\s\d{2}\:\d{2}\:\d{2}\s+\d+\s{1}"
     for obj in out:
-        # The output is space-delimited, so we'll parse it to get the info we need
-        reformatted = [i for i in obj.split(" ") if i != ""]
-
-        # if the parsed output starts with a PRE label, then that means it's a directory
-        if reformatted[0] == "PRE":
-            # Since the output is space-delimited, we'll need to work a little to catch directories with spaces in their names.
-            # This splits the output on the first occurence of a space, so now we have a list of the form ["PRE","FILE NAME"]
-            name = obj.split(" ",1)[1] 
-            # And we update the max name length for formatting
+        reformatted = re.split(regex_pattern,obj)
+        #print(reformatted)
+        if len(reformatted) == 1 and reformatted[0][:4] == "PRE ":
+            #print(reformatted[0][:4])
+            name = reformatted[0].split("PRE ")[-1]
             if len(name) > max_name_length:
                 max_name_length = len(name)
-            # Directories don't have a size, so we set this manually
-            size = 0
+            size = 0 
             directory = True
-            # The true path to the object we've found is now ua-rt-t2-<groupname>/directory/subdirectory
             true_path = prefix[:-1] + name + '"'
-            # And we add this to our results dictionary
             objects[name] = {"size" : size, "directory": directory, "true path": true_path, "storage class": "-","ArchiveStatus": "-", "RestoreStatus":"-"}
-        # Now, if our result has 3 elements with a 0 for size, this is giving us info on the directory we're querying. We won't 
-        # worry about this entry and skip it.
-        elif len(reformatted) == 3 and reformatted[-1] == "0":
-            pass
-        
-        # Otherwise, the element we've found is a file
-        else:
-            # Now, the question is if this file was directly targeted with the --prefix flag. If it is, we only want to 
-            # include information about it and nothing else. AWS will return multiple objects if you're querying something
-            # that shares a common prefix with something else (think: 111 and 11111), so we need to catch these cases. 
-            date, time, size = reformatted[:3]
-            name =  " ".join(reformatted[3:]) 
-            
+        elif len(reformatted) == 2:
+            name = reformatted[-1]
+            date, time, size =[i for i in re.search(regex_pattern,obj)[0].split(" ") if i != ""]
             if is_directory == False and prefix != "":
-                # if we're targeting a file, the true path is the path that was given with the prefix flag
                 true_path = prefix
                 key_comparison = true_path 
                 directory = False
-                # Because the true path has quotations around it, we want to remove them, then get the last element in 
-                # the path to compare the name of the object we've found with the prefix that was provided so we can 
-                # exclude erroneous results.
                 if key_comparison[-1] == '"':
                     key_comparison  = key_comparison[:-1]
                 if key_comparison[0] == '"':
                     key_comparison = key_comparison[1:]
                 key_comparison = key_comparison.split("/")[-1]
-                # If we've found our target, we add it to our results and stop the search
                 if name == key_comparison:
                     max_name_length = len(name)
                     objects[name] = {"size" : size, "directory": directory, "true path": true_path, "storage class": "-","ArchiveStatus": "-", "RestoreStatus":"-"}
                     break
             # Now, if we've targetted a directory and PRE isn't showing up in the entry we're parsing, we've found a file.    
             else:
-                date, time, size = reformatted[:3]
+                date, time, size =[i for i in re.search(regex_pattern,obj)[0].split(" ") if i != ""]
                 directory = False
                 if prefix != "":
                     true_path = prefix[:-1]+"/"+name+'"'
@@ -106,7 +87,53 @@ def aws_ls(bucket, prefix,is_directory):
                 if len(name) > max_name_length:
                     max_name_length = len(name) 
                 objects[name] = {"size" : size, "directory": directory, "true path": true_path, "storage class": "-","ArchiveStatus": "-", "RestoreStatus":"-"}
+        #print(reformatted)
+        # The output is space-delimited, so we'll parse it to get the info we need
 
+        # if the parsed output starts with a PRE label, then that means it's a directory
+        # Now, if our result has 3 elements with a 0 for size, this is giving us info on the directory we're querying. We won't 
+        # worry about this entry and skip it.
+        #elif len(reformatted) == 3 and reformatted[-1] == "0":
+        #    pass
+        
+        # Otherwise, the element we've found is a file
+        #else:
+            # Now, the question is if this file was directly targeted with the --prefix flag. If it is, we only want to 
+            # include information about it and nothing else. AWS will return multiple objects if you're querying something
+            # that shares a common prefix with something else (think: 111 and 11111), so we need to catch these cases. 
+        #    date, time, size = reformatted[:3]
+        #    name =  " ".join(reformatted[3:]) 
+            
+        #    if is_directory == False and prefix != "":
+                # if we're targeting a file, the true path is the path that was given with the prefix flag
+        #        true_path = prefix
+        #        key_comparison = true_path 
+        #        directory = False
+                # Because the true path has quotations around it, we want to remove them, then get the last element in 
+                # the path to compare the name of the object we've found with the prefix that was provided so we can 
+                # exclude erroneous results.
+        #        if key_comparison[-1] == '"':
+        #            key_comparison  = key_comparison[:-1]
+        #        if key_comparison[0] == '"':
+        #            key_comparison = key_comparison[1:]
+        #        key_comparison = key_comparison.split("/")[-1]
+                # If we've found our target, we add it to our results and stop the search
+        #        if name == key_comparison:
+        #            max_name_length = len(name)
+        #            objects[name] = {"size" : size, "directory": directory, "true path": true_path, "storage class": "-","ArchiveStatus": "-", "RestoreStatus":"-"}
+        #            break
+        #    # Now, if we've targetted a directory and PRE isn't showing up in the entry we're parsing, we've found a file.    
+        #    else:
+        #        date, time, size = reformatted[:3]
+        #        directory = False
+        #        if prefix != "":
+        #            true_path = prefix[:-1]+"/"+name+'"'
+        #        else:
+        #            true_path = '"'+name+'"'
+        #        if len(name) > max_name_length:
+        #            max_name_length = len(name) 
+        #        objects[name] = {"size" : size, "directory": directory, "true path": true_path, "storage class": "-","ArchiveStatus": "-", "RestoreStatus":"-"}
+    #sys.exit(0)
     return objects, max_name_length
     
     
